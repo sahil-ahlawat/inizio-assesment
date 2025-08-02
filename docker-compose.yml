@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Laravel API
+  laravel_api:
+    build:
+      context: ./laravel_api
+      dockerfile: Dockerfile
+    container_name: laravel_api
+    ports:
+      - "8000:80"
+    volumes:
+      - ./laravel_api:/var/www/html
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+
+  # React App
+  react_app:
+    build:
+      context: ./react_app
+      dockerfile: Dockerfile
+    container_name: react_app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./react_app:/app
+      - /app/node_modules
+    networks:
+      - app-network
+
+  # PHP App
+  php_app:
+    build:
+      context: ./php_csv_uploader
+      dockerfile: Dockerfile
+    container_name: php_app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./php_csv_uploader:/var/www/html
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+
+  # MySQL
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql
+      MYSQL_ROOT_PASSWORD: root
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data:
+    driver: local
