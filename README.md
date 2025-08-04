@@ -16,7 +16,7 @@ This project contains three bootstrapped applications:
 1.  Clone the repository or download the zip file.
 2.  Open a terminal in the `inizio-assesment` directory.
 3.  Run the following command:
-    docker-compose up -d
+    docker-compose up --build
 
 ## To stop the applications 
 1. Open a terminal in the `inizio-assesment` directory.

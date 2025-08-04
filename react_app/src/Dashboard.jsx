@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TaskBoard from './TaskBoard';
+
+const LoadingSpinner = () => (
+  <div className="loading-spinner-overlay">
+    <div className="loading-spinner"></div>
+  </div>
+);
 
 const Dashboard = ({ token, handleLogout }) => {
   const [tasks, setTasks] = useState([]);
@@ -9,16 +15,15 @@ const Dashboard = ({ token, handleLogout }) => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [editingTask, setEditingTask] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-  const fetchTasks = async (page = 1) => {
+  const fetchTasks = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const categoryFilter = selectedCategory ? `&category_id=${selectedCategory}` : '';
-      const response = await fetch(`${API_URL}/tasks?page=${page}${categoryFilter}`, {
+      const response = await fetch(`${API_URL}/tasks?per_page=100`, { // Fetch all tasks
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
@@ -26,14 +31,15 @@ const Dashboard = ({ token, handleLogout }) => {
       });
       const data = await response.json();
       setTasks(data.data);
-      setCurrentPage(data.current_page);
-      setLastPage(data.last_page);
     } catch (error) {
-      console.error('Error fetching tasks:', error);
+      setError('Error fetching tasks');
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [token, API_URL]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
+    setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/categories`, {
         headers: {
@@ -44,18 +50,22 @@ const Dashboard = ({ token, handleLogout }) => {
       const data = await response.json();
       setCategories(data);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      setError('Error fetching categories');
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [token, API_URL]);
 
   useEffect(() => {
-    fetchTasks(currentPage);
+    fetchTasks();
     fetchCategories();
-  }, [token, currentPage, selectedCategory]);
+  }, [fetchTasks, fetchCategories]);
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
-    setIsProcessing(true);
+    const newTask = { id: Date.now(), title: newTaskTitle, category: [{ id: selectedCategory, title: '' }] };
+    setTasks(prev => [...prev, newTask]);
+    setIsLoading(true);
     try {
       await fetch(`${API_URL}/tasks`, {
         method: 'POST',
@@ -69,15 +79,20 @@ const Dashboard = ({ token, handleLogout }) => {
       setNewTaskTitle('');
       fetchTasks();
     } catch (error) {
-      console.error('Error creating task:', error);
+      setError('Error creating task');
+      setTasks(tasks.filter(t => t.id !== newTask.id));
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   const handleUpdateTask = async (e) => {
     e.preventDefault();
-    setIsProcessing(true);
+    const originalTasks = [...tasks];
+    const updatedTask = { ...editingTask, title: editingTask.title, category: [{ id: editingTask.category[0].id }] };
+    setTasks(tasks.map(t => t.id === editingTask.id ? updatedTask : t));
+    setEditingTask(null);
+    setIsLoading(true);
     try {
       await fetch(`${API_URL}/tasks/${editingTask.id}`, {
         method: 'PUT',
@@ -88,17 +103,18 @@ const Dashboard = ({ token, handleLogout }) => {
         },
         body: JSON.stringify({ title: editingTask.title, category_id: editingTask.category[0].id }),
       });
-      setEditingTask(null);
-      fetchTasks();
     } catch (error) {
-      console.error('Error updating task:', error);
+      setError('Error updating task');
+      setTasks(originalTasks);
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   const handleDeleteTask = async (id) => {
-    setIsProcessing(true);
+    const originalTasks = [...tasks];
+    setTasks(tasks.filter(t => t.id !== id));
+    setIsLoading(true);
     try {
       await fetch(`${API_URL}/tasks/${id}`, {
         method: 'DELETE',
@@ -106,17 +122,19 @@ const Dashboard = ({ token, handleLogout }) => {
           'Authorization': `Bearer ${token}`,
         },
       });
-      fetchTasks();
     } catch (error) {
-      console.error('Error deleting task:', error);
+      setError('Error deleting task');
+      setTasks(originalTasks);
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
-    setIsProcessing(true);
+    const newCategory = { id: Date.now(), title: newCategoryTitle };
+    setCategories(prev => [...prev, newCategory]);
+    setIsLoading(true);
     try {
       await fetch(`${API_URL}/categories`, {
         method: 'POST',
@@ -130,15 +148,20 @@ const Dashboard = ({ token, handleLogout }) => {
       setNewCategoryTitle('');
       fetchCategories();
     } catch (error) {
-      console.error('Error creating category:', error);
+      setError('Error creating category');
+      setCategories(categories.filter(c => c.id !== newCategory.id));
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   const handleUpdateCategory = async (e) => {
     e.preventDefault();
-    setIsProcessing(true);
+    const originalCategories = [...categories];
+    const updatedCategory = { ...editingCategory, title: editingCategory.title };
+    setCategories(categories.map(c => c.id === editingCategory.id ? updatedCategory : c));
+    setEditingCategory(null);
+    setIsLoading(true);
     try {
       await fetch(`${API_URL}/categories/${editingCategory.id}`, {
         method: 'PUT',
@@ -149,17 +172,18 @@ const Dashboard = ({ token, handleLogout }) => {
         },
         body: JSON.stringify({ title: editingCategory.title }),
       });
-      setEditingCategory(null);
-      fetchCategories();
     } catch (error) {
-      console.error('Error updating category:', error);
+      setError('Error updating category');
+      setCategories(originalCategories);
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   const handleDeleteCategory = async (id) => {
-    setIsProcessing(true);
+    const originalCategories = [...categories];
+    setCategories(categories.filter(c => c.id !== id));
+    setIsLoading(true);
     try {
       await fetch(`${API_URL}/categories/${id}`, {
         method: 'DELETE',
@@ -167,16 +191,41 @@ const Dashboard = ({ token, handleLogout }) => {
           'Authorization': `Bearer ${token}`,
         },
       });
-      fetchCategories();
     } catch (error) {
-      console.error('Error deleting category:', error);
+      setError('Error deleting category');
+      setCategories(originalCategories);
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleTaskCategoryUpdate = async (taskId, taskTitle, newCategoryId) => {
+    const originalTasks = [...tasks];
+    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, category: [{ id: newCategoryId }] } : t);
+    setTasks(updatedTasks);
+    setIsLoading(true);
+    try {
+      await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: taskTitle, category_id: newCategoryId }),
+      });
+    } catch (error) {
+      setError('Error updating task category');
+      setTasks(originalTasks);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px' }}>
+      {isLoading && <LoadingSpinner />}
+      {error && <div style={{ color: 'red', textAlign: 'center', marginBottom: '10px' }}>{error}</div>}
       <div style={{ textAlign: 'right', marginBottom: '20px' }}>
         <button onClick={handleLogout} style={{ backgroundColor: '#dc3545', color: '#fff', padding: '10px 20px', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
           Logout
@@ -185,131 +234,85 @@ const Dashboard = ({ token, handleLogout }) => {
 
       <h1 style={{ fontSize: '2.25rem', fontWeight: 'bold', marginBottom: '24px', textAlign: 'center' }}>Task Management</h1>
 
-      {/* Task Management */}
-      <div style={{ backgroundColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', borderRadius: '8px', padding: '24px', marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'semibold', marginBottom: '16px' }}>Tasks</h2>
-        <form onSubmit={editingTask ? handleUpdateTask : handleCreateTask} style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-          <input
-            type="text"
-            placeholder="Task Title"
-            value={editingTask ? editingTask.title : newTaskTitle}
-            onChange={(e) => editingTask ? setEditingTask({ ...editingTask, title: e.target.value }) : setNewTaskTitle(e.target.value)}
-            style={{ flex: '1', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
-          <select
-            value={editingTask ? editingTask.category[0].id : selectedCategory}
-            onChange={(e) => editingTask ? setEditingTask({ ...editingTask, category: [{ id: e.target.value }] }) : setSelectedCategory(e.target.value)}
-            style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
-          >
-            <option value="">Select Category</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.title}
-              </option>
-            ))}
-          </select>
-          <button type="submit" style={{ backgroundColor: '#007bff', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            {editingTask ? 'Update Task' : 'Add Task'}
-          </button>
-          {editingTask && (
-            <button onClick={() => setEditingTask(null)} style={{ backgroundColor: '#6c757d', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Cancel
-            </button>
-          )}
-        </form>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Filter by Category:</label>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
-          >
-            <option value="">All Categories</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.title}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <ul style={{ listStyle: 'none', padding: '0' }}>
-          {tasks.map((task) => (
-            <li key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f8f8', padding: '12px', borderRadius: '6px', marginBottom: '8px' }}>
-              <span>{task.title} ({task.category[0]?.title})</span>
-              <div>
-                <button onClick={() => setEditingTask(task)} style={{ backgroundColor: '#ffc107', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>
-                  Edit
-                </button>
-                <button onClick={() => handleDeleteTask(task.id)} style={{ backgroundColor: '#dc3545', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {/* Pagination */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px', gap: '8px' }}>
-          {Array.from({ length: lastPage }, (_, i) => i + 1).map((page) => (
-            <button
-              key={page}
-              onClick={() => setCurrentPage(page)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: '4px',
-                border: '1px solid #ccc',
-                backgroundColor: currentPage === page ? '#007bff' : '#f0f0f0',
-                color: currentPage === page ? '#fff' : '#333',
-                cursor: 'pointer',
-              }}
+      {/* Task & Category Forms */}
+      <div style={{ display: 'flex', gap: '32px', marginBottom: '32px' }}>
+        {/* Task Form */}
+        <div style={{ flex: 1, backgroundColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', borderRadius: '8px', padding: '24px' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'semibold', marginBottom: '16px' }}>{editingTask ? 'Edit Task' : 'Add Task'}</h2>
+          <form onSubmit={editingTask ? handleUpdateTask : handleCreateTask}>
+            <input
+              type="text"
+              placeholder="Task Title"
+              value={editingTask ? editingTask.title : newTaskTitle}
+              onChange={(e) => editingTask ? setEditingTask({ ...editingTask, title: e.target.value }) : setNewTaskTitle(e.target.value)}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', marginBottom: '16px' }}
+            />
+            <select
+              value={editingTask ? editingTask.category[0].id : selectedCategory}
+              onChange={(e) => editingTask ? setEditingTask({ ...editingTask, category: [{ id: e.target.value }] }) : setSelectedCategory(e.target.value)}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', marginBottom: '16px' }}
             >
-              {page}
+              <option value="">Select Category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.title}
+                </option>
+              ))}
+            </select>
+            <button type="submit" style={{ backgroundColor: '#007bff', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              {editingTask ? 'Update Task' : 'Add Task'}
             </button>
-          ))}
+            {editingTask && (
+              <button onClick={() => setEditingTask(null)} style={{ backgroundColor: '#6c757d', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '8px' }}>
+                Cancel
+              </button>
+            )}
+          </form>
+        </div>
+
+        {/* Category Form */}
+        <div style={{ flex: 1, backgroundColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', borderRadius: '8px', padding: '24px' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'semibold', marginBottom: '16px' }}>{editingCategory ? 'Edit Category' : 'Add Category'}</h2>
+          <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory}>
+            <input
+              type="text"
+              placeholder="Category Title"
+              value={editingCategory ? editingCategory.title : newCategoryTitle}
+              onChange={(e) => editingCategory ? setEditingCategory({ ...editingCategory, title: e.target.value }) : setNewCategoryTitle(e.target.value)}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', marginBottom: '16px' }}
+            />
+            <button type="submit" style={{ backgroundColor: '#007bff', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              {editingCategory ? 'Update Category' : 'Add Category'}
+            </button>
+            {editingCategory && (
+              <button onClick={() => setEditingCategory(null)} style={{ backgroundColor: '#6c757d', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '8px' }}>
+                Cancel
+              </button>
+            )}
+          </form>
+
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'semibold', marginTop: '24px', marginBottom: '16px' }}>Existing Categories</h3>
+          <ul style={{ listStyle: 'none', padding: '0' }}>
+            {categories.map((category) => (
+              <li key={category.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f8f8', padding: '12px', borderRadius: '6px', marginBottom: '8px' }}>
+                <span>{category.title}</span>
+                <div>
+                  <button onClick={() => setEditingCategory(category)} style={{ backgroundColor: '#ffc107', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>
+                    Edit
+                  </button>
+                  <button onClick={() => handleDeleteCategory(category.id)} style={{ backgroundColor: '#dc3545', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
-      {/* Category Management */}
-      <div style={{ backgroundColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', borderRadius: '8px', padding: '24px' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'semibold', marginBottom: '16px' }}>Categories</h2>
-        <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory} style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-          <input
-            type="text"
-            placeholder="Category Title"
-            value={editingCategory ? editingCategory.title : newCategoryTitle}
-            onChange={(e) => editingCategory ? setEditingCategory({ ...editingCategory, title: e.target.value }) : setNewCategoryTitle(e.target.value)}
-            style={{ flex: '1', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
-          <button type="submit" style={{ backgroundColor: '#007bff', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            {editingCategory ? 'Update Category' : 'Add Category'}
-          </button>
-          {editingCategory && (
-            <button onClick={() => setEditingCategory(null)} style={{ backgroundColor: '#6c757d', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Cancel
-            </button>
-          )}
-        </form>
-
-        <ul style={{ listStyle: 'none', padding: '0' }}>
-          {categories.map((category) => (
-            <li key={category.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f8f8', padding: '12px', borderRadius: '6px', marginBottom: '8px' }}>
-              <span>{category.title}</span>
-              <div>
-                <button onClick={() => setEditingCategory(category)} style={{ backgroundColor: '#ffc107', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>
-                  Edit
-                </button>
-                <button onClick={() => handleDeleteCategory(category.id)} style={{ backgroundColor: '#dc3545', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} disabled={isProcessing}>
-                  {isProcessing ? 'Processing...' : 'Delete'}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <div className="taskmanagementboard">
+        <TaskBoard categories={categories} tasks={tasks} onTaskCategoryUpdate={handleTaskCategoryUpdate} />
       </div>
-
-      <div class="taskmanagementboard"></div>
     </div>
   );
 };

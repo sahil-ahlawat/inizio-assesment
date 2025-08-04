@@ -15,7 +15,7 @@ services:
       - app-network
     depends_on:
       - mysql
-    command: sh -c "composer install && apache2-foreground"
+    command: sh -c "echo 'Starting composer install...' && composer install && echo 'Composer install finished. Starting Apache...' && apache2-foreground"
     
   # React App
   react_app:

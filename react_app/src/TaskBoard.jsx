@@ -1,40 +1,7 @@
+import React from 'react';
 
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const TaskBoard = () => {
-    const [categories, setCategories] = useState([]);
-    const [tasks, setTasks] = useState([]);
-    const [error, setError] = useState(null);
-    const [draggedTask, setDraggedTask] = useState(null);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    setError('Authentication token not found.');
-                    return;
-                }
-
-                const categoriesResponse = await axios.get('http://localhost:8000/api/categories', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setCategories(categoriesResponse.data);
-
-                const tasksResponse = await axios.get('http://localhost:8000/api/tasks', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setTasks(tasksResponse.data.data);
-
-            } catch (err) {
-                setError('Failed to fetch data. Please try again later.');
-                console.error(err);
-            }
-        };
-
-        fetchData();
-    }, []);
+const TaskBoard = ({ categories, tasks, onTaskCategoryUpdate }) => {
+    const [draggedTask, setDraggedTask] = React.useState(null);
 
     const handleDragStart = (e, task) => {
         setDraggedTask(task);
@@ -44,65 +11,46 @@ const TaskBoard = () => {
         e.preventDefault();
     };
 
-    const handleDrop = async (e, categoryId) => {
+    const handleDrop = (e, categoryId) => {
         e.preventDefault();
         if (!draggedTask) return;
 
-        const originalCategoryId = draggedTask.category_id;
+        const originalCategoryId = draggedTask.category[0]?.id;
         if (originalCategoryId === categoryId) {
-            // Handle reordering within the same category
-            const updatedTasks = [...tasks];
-            const taskIndex = updatedTasks.findIndex(t => t.id === draggedTask.id);
-            const dropIndex = Array.from(e.currentTarget.children).findIndex(el => el === e.target);
-
-            if (taskIndex !== -1 && dropIndex !== -1) {
-                console.log(`Order of task (${draggedTask.id}) changed from ${taskIndex} to ${dropIndex}`);
-            }
+            setDraggedTask(null);
             return;
         }
 
-        try {
-            const token = localStorage.getItem('token');
-            await axios.put(`http://localhost:8000/api/tasks/${draggedTask.id}`,
-                { ...draggedTask, category_id: categoryId },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            setTasks(tasks.map(t => t.id === draggedTask.id ? { ...t, category_id: categoryId } : t));
-        } catch (err) {
-            setError('Failed to update task category.');
-            console.error(err);
-        } finally {
-            setDraggedTask(null);
-        }
+        onTaskCategoryUpdate(draggedTask.id, draggedTask.title, categoryId);
+        setDraggedTask(null);
     };
 
-    if (error) {
-        return <div className="error-message">{error}</div>;
-    }
-
     return (
-        <div className="task-board">
+        <div className="task-board" style={{ display: 'flex', gap: '16px', height: '80vh', overflowX: 'auto', paddingBottom: '16px' }}>
             {categories.map(category => (
                 <div
                     key={category.id}
                     className="category-column"
+                    style={{ flex: '0 0 250px', padding: '16px', backgroundColor: '#f4f5f7', borderRadius: '8px', display: 'flex', flexDirection: 'column' }}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, category.id)}
                 >
-                    <h2>{category.title}</h2>
-                    {tasks
-                        .filter(task => task.category_id === category.id)
-                        .map(task => (
-                            <div
-                                key={task.id}
-                                className="task-card"
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, task)}
-                            >
-                                {task.title}
-                            </div>
-                        ))}
+                    <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', flexShrink: 0 }}>{category.title}</h2>
+                    <div className="task-list" style={{ minHeight: '200px', overflowY: 'auto', flexGrow: 1 }}>
+                        {tasks
+                            .filter(task => task.category[0]?.id === category.id)
+                            .map(task => (
+                                <div
+                                    key={task.id}
+                                    className="task-card"
+                                    style={{ padding: '12px', backgroundColor: 'white', borderRadius: '4px', marginBottom: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', cursor: 'grab' }}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, task)}
+                                >
+                                    {task.title}
+                                </div>
+                            ))}
+                    </div>
                 </div>
             ))}
         </div>
