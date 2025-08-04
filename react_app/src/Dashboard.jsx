@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import TaskBoard from './TaskBoard';
 
 const Dashboard = ({ token, handleLogout }) => {
   const [tasks, setTasks] = useState([]);
@@ -10,6 +11,7 @@ const Dashboard = ({ token, handleLogout }) => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL;
 
@@ -53,6 +55,7 @@ const Dashboard = ({ token, handleLogout }) => {
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
+    setIsProcessing(true);
     try {
       await fetch(`${API_URL}/tasks`, {
         method: 'POST',
@@ -67,11 +70,14 @@ const Dashboard = ({ token, handleLogout }) => {
       fetchTasks();
     } catch (error) {
       console.error('Error creating task:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleUpdateTask = async (e) => {
     e.preventDefault();
+    setIsProcessing(true);
     try {
       await fetch(`${API_URL}/tasks/${editingTask.id}`, {
         method: 'PUT',
@@ -86,10 +92,13 @@ const Dashboard = ({ token, handleLogout }) => {
       fetchTasks();
     } catch (error) {
       console.error('Error updating task:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleDeleteTask = async (id) => {
+    setIsProcessing(true);
     try {
       await fetch(`${API_URL}/tasks/${id}`, {
         method: 'DELETE',
@@ -100,11 +109,14 @@ const Dashboard = ({ token, handleLogout }) => {
       fetchTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
+    setIsProcessing(true);
     try {
       await fetch(`${API_URL}/categories`, {
         method: 'POST',
@@ -119,11 +131,14 @@ const Dashboard = ({ token, handleLogout }) => {
       fetchCategories();
     } catch (error) {
       console.error('Error creating category:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleUpdateCategory = async (e) => {
     e.preventDefault();
+    setIsProcessing(true);
     try {
       await fetch(`${API_URL}/categories/${editingCategory.id}`, {
         method: 'PUT',
@@ -138,10 +153,13 @@ const Dashboard = ({ token, handleLogout }) => {
       fetchCategories();
     } catch (error) {
       console.error('Error updating category:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleDeleteCategory = async (id) => {
+    setIsProcessing(true);
     try {
       await fetch(`${API_URL}/categories/${id}`, {
         method: 'DELETE',
@@ -152,6 +170,8 @@ const Dashboard = ({ token, handleLogout }) => {
       fetchCategories();
     } catch (error) {
       console.error('Error deleting category:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -280,14 +300,16 @@ const Dashboard = ({ token, handleLogout }) => {
                 <button onClick={() => setEditingCategory(category)} style={{ backgroundColor: '#ffc107', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>
                   Edit
                 </button>
-                <button onClick={() => handleDeleteCategory(category.id)} style={{ backgroundColor: '#dc3545', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                  Delete
+                <button onClick={() => handleDeleteCategory(category.id)} style={{ backgroundColor: '#dc3545', color: '#fff', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} disabled={isProcessing}>
+                  {isProcessing ? 'Processing...' : 'Delete'}
                 </button>
               </div>
             </li>
           ))}
         </ul>
       </div>
+
+      <div class="taskmanagementboard"></div>
     </div>
   );
 };
