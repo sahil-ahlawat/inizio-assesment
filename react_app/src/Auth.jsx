@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
-const Auth = () => {
-  const [token, setToken] = useState(localStorage.getItem('token'));
+const Auth = ({ setToken }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -49,19 +48,6 @@ const Auth = () => {
       setLoading(false);
     }
   };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-  };
-
-  if (token) {
-    return (
-      <div style={{ textAlign: 'right' }}>
-        <button onClick={handleLogout}>Logout</button>
-      </div>
-    );
-  }
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f0f0' }}>
